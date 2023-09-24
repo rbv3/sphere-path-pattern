@@ -43,18 +43,33 @@ const earthGravity = [0, -9.82, 0]
 
 world.gravity.set(...earthGravity)
 
+// Materials
+const defaultMaterial = new CANNON.Material('default')
+
+const defaultContactMaterial = new CANNON.ContactMaterial(
+    defaultMaterial,
+    defaultMaterial,
+    {
+        friction: 0.1,
+        restitution: 0.75
+    }
+)
+
+world.defaultContactMaterial = defaultContactMaterial
+world.addContactMaterial(defaultContactMaterial)
+
 // Sphere
 const sphereShape = new CANNON.Sphere(0.5)
 const sphereBody = new CANNON.Body({
     mass: 1,
     position: new CANNON.Vec3(0, 3, 0),
-    shape: sphereShape
+    shape: sphereShape,
 })
 
 world.addBody(sphereBody)
 
 // Floor
-const floorShape = new CANNON.Plane()
+const floorShape = new CANNON.Plane() // infinite plane
 const floorBody = new CANNON.Body()
 floorBody.mass = 0 // it's static
 floorBody.addShape(floorShape)
