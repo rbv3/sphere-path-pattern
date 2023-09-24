@@ -66,6 +66,11 @@ const sphereBody = new CANNON.Body({
     shape: sphereShape,
 })
 
+sphereBody.applyLocalForce(
+    new CANNON.Vec3(150, 0, 0),
+    new CANNON.Vec3(0, 0, 0)
+)
+
 world.addBody(sphereBody)
 
 // Floor
@@ -79,6 +84,7 @@ floorBody.quaternion.setFromAxisAngle(
 )
 
 world.addBody(floorBody)
+
 /**
  * Test sphere
  */
@@ -186,6 +192,13 @@ const tick = () =>
     const elapsedTime = clock.getElapsedTime()
     const deltaTime = elapsedTime - previousTime
     previousTime = elapsedTime
+
+    // Update Physics
+    sphereBody.applyForce(
+        new CANNON.Vec3(-0.5, 0, 0),
+        sphereBody.position
+    )
+
     // Update Physics World
     world.step(1/60, deltaTime, 3)
     sphere.position.copy(sphereBody.position)
