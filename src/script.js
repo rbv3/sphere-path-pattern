@@ -32,13 +32,8 @@ debugObject.createBox = () => {
 }
 debugObject.reset = () => {
     for(const object of objectsToUpdate) {
-        // remove body
-        object.body.removeEventListener('collide', playHitSound)
-        world.removeBody(object.body)
-
-        scene.remove(object.mesh)
+        removeObject(object)
     }
-    objectsToUpdate.splice(0, objectsToUpdate.length)
 }
 gui.add(debugObject, 'createSphere')
 gui.add(debugObject, 'createBox')
@@ -110,7 +105,9 @@ world.addContactMaterial(defaultContactMaterial)
 
 
 // Floor
-const floorShape = new CANNON.Plane() // infinite plane
+const floorShape = new CANNON.Box(
+    new CANNON.Vec3(5, 5, 0.01)
+) // limited plane
 const floorBody = new CANNON.Body()
 floorBody.mass = 0 // it's static
 floorBody.addShape(floorShape)
@@ -205,7 +202,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 /*
     Utils
 */
-const objectsToUpdate = []
+let objectsToUpdate = []
 
 // create Spheres
 const sphereGeometry = new THREE.SphereGeometry(1, 20, 20)
@@ -289,6 +286,20 @@ const createBox = (width, height, depth, position) => {
     })
 }
 
+const removeObject = (object) => {
+    const id = object.body.id;
+    console.log(object)
+    // remove body
+    object.body.removeEventListener('collide', playHitSound)
+    world.removeBody(object.body)
+    //remove mesh
+    scene.remove(object.mesh)
+
+    objectsToUpdate = objectsToUpdate.filter(obj => {
+        return obj.body.id != id
+    })
+}
+
 createSphere(0.5, {x: 0, y: 3, z: 0})
 
 /**
@@ -315,6 +326,9 @@ const tick = () =>
         object.mesh.quaternion.copy(
             object.body.quaternion
         )
+        if(object.body.position.y <= -10) {
+            removeObject(object)
+        }
     }
 
     // Update controls
