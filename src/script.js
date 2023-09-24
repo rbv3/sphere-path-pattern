@@ -100,6 +100,8 @@ const defaultContactMaterial = new CANNON.ContactMaterial(
     }
 )
 
+gui.add(defaultContactMaterial, 'restitution').min(0).max(1.5).name('bounce')
+
 world.defaultContactMaterial = defaultContactMaterial
 world.addContactMaterial(defaultContactMaterial)
 
@@ -288,7 +290,6 @@ const createBox = (width, height, depth, position) => {
 
 const removeObject = (object) => {
     const id = object.body.id;
-    console.log(object)
     // remove body
     object.body.removeEventListener('collide', playHitSound)
     world.removeBody(object.body)
