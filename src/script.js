@@ -20,9 +20,9 @@ debugObject.createSphere = () => {
     createSphere(radius, position)
 }
 debugObject.createBox = () => {
-    const width = Math.random() * 0.5
-    const height = Math.random() * 0.5
-    const depth = Math.random() * 0.5
+    const width = Math.random() * 0.75
+    const height = Math.random() * 0.75
+    const depth = Math.random() * 0.75
     const position = {
         x: (Math.random() - 0.5) * 3,
         y: 3,
@@ -63,6 +63,8 @@ Physics
 // World
 const world = new CANNON.World()
 const earthGravity = [0, -9.82, 0]
+world.broadphase = new CANNON.SAPBroadphase(world)
+world.allowSleep = true
 
 world.gravity.set(...earthGravity)
 
