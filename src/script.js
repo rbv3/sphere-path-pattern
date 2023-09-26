@@ -10,6 +10,7 @@ THREE.ColorManagement.enabled = false
  */
 const gui = new dat.GUI()
 const debugObject = {}
+const parameters = { strength: 10 }
 debugObject.createSphere = () => {
     const radius = Math.random() * 0.5
     const position = {
@@ -38,6 +39,7 @@ debugObject.reset = () => {
 gui.add(debugObject, 'createSphere')
 gui.add(debugObject, 'createBox')
 gui.add(debugObject, 'reset')
+gui.add(parameters, 'strength').min(1).max(1000)
 
 /**
  * Base
@@ -61,6 +63,23 @@ window.addEventListener('mousemove', (_event) => {
     mouse.x = (_event.clientX / sizes.width) * 2 - 1
     mouse.y = - (_event.clientY / sizes.height) * 2 + 1
 })
+window.addEventListener('click', () => {
+    if(currentIntersect) {
+        const currentObject = objectsToUpdate.filter(object => {
+            return object.mesh.id == currentIntersect.object.id
+        })[0]
+        const body = currentObject.body
+
+        let cameraDirection = new THREE.Vector3()
+        let center = new CANNON.Vec3(0, 0, 0)
+        camera.getWorldDirection(cameraDirection).multiplyScalar(parameters.strength)
+
+        cameraDirection.y = 0
+        body.sleepState = 0
+        body.applyForce(cameraDirection, center)
+    }
+})
+
 /*
     Sounds
 */
@@ -324,6 +343,11 @@ const removeObject = (object) => {
 
 createSphere(0.5, {x: 0, y: 3, z: 0})
 
+/*
+    Apply Force
+*/
+let currentIntersect = null;
+
 /**
  * Animate
  */
@@ -346,6 +370,14 @@ const tick = () =>
     }
     if(intersectedMeshes.length) {
         intersectedMeshes[0].object.material = hoverMaterial
+    }
+    
+    if(intersectedMeshes.length) {
+        // mouse enters
+        currentIntersect = intersectedMeshes[0]
+    } else {
+        // mouse leaves
+        currentIntersect = null
     }
 
     // Update Physics World
