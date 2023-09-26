@@ -10,7 +10,7 @@ THREE.ColorManagement.enabled = false
  */
 const gui = new dat.GUI()
 const debugObject = {}
-const parameters = { strength: 10 }
+const parameters = { strength: 100 }
 debugObject.createSphere = () => {
     const radius = Math.random() * 0.5
     const position = {
