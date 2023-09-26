@@ -49,6 +49,19 @@ const canvas = document.querySelector('canvas.webgl')
 const scene = new THREE.Scene()
 
 /*
+    Raycaster
+*/
+const raycaster = new THREE.Raycaster()
+
+/*
+    Mouse
+*/
+const mouse = new THREE.Vector2()
+window.addEventListener('mousemove', (_event) => {
+    mouse.x = (_event.clientX / sizes.width) * 2 - 1
+    mouse.y = - (_event.clientY / sizes.height) * 2 + 1
+})
+/*
     Sounds
 */
 const hitSound = new Audio('/sounds/hit.mp3')
@@ -205,19 +218,28 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     Utils
 */
 let objectsToUpdate = []
+let meshesToCheck = []
 
 // create Spheres
 const sphereGeometry = new THREE.SphereGeometry(1, 20, 20)
-const sphereMaterial = new THREE.MeshStandardMaterial({
+const regularMaterial = new THREE.MeshStandardMaterial({
     metalness: 0.3,
     roughness: 0.4,
-    envMap: environmentMapTexture
+    envMap: environmentMapTexture,
+    userData: {id: 0}
+})
+const hoverMaterial = new THREE.MeshStandardMaterial({
+    metalness: 0.3,
+    roughness: 0.4,
+    color: '#ff0000',
+    envMap: environmentMapTexture,
+    userData: {id: 1}
 })
 const createSphere = (radius, position) => {
     //Three.js Mesh
     const mesh = new THREE.Mesh(
         sphereGeometry,
-        sphereMaterial
+        regularMaterial
     )
     mesh.scale.set(radius, radius, radius)
     mesh.castShadow = true
@@ -242,20 +264,16 @@ const createSphere = (radius, position) => {
         mesh,
         body
     })
+    meshesToCheck.push(mesh)
 }
 
 // create Boxes
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1)
-const boxMaterial = new THREE.MeshStandardMaterial({
-    metalness: 0.3,
-    roughness: 0.4,
-    envMap: environmentMapTexture
-})
 const createBox = (width, height, depth, position) => {
     // Three mesh
     const mesh = new THREE.Mesh(
         boxGeometry,
-        boxMaterial
+        regularMaterial
     )
     mesh.scale.set(width, height, depth)
     mesh.castShadow = true
@@ -286,6 +304,7 @@ const createBox = (width, height, depth, position) => {
         mesh,
         body
     })
+    meshesToCheck.push(mesh)
 }
 
 const removeObject = (object) => {
@@ -295,9 +314,11 @@ const removeObject = (object) => {
     world.removeBody(object.body)
     //remove mesh
     scene.remove(object.mesh)
-
     objectsToUpdate = objectsToUpdate.filter(obj => {
         return obj.body.id != id
+    })
+    meshesToCheck = meshesToCheck.filter(mesh => {
+        return mesh.id != object.mesh.id
     })
 }
 
@@ -313,9 +334,19 @@ const tick = () =>
     const elapsedTime = clock.getElapsedTime()
     const deltaTime = elapsedTime - previousTime
     previousTime = elapsedTime
-
-    // Update Physics
     
+    // Update Raycaster
+    raycaster.setFromCamera(mouse, camera)
+
+    const intersectedMeshes = raycaster.intersectObjects(meshesToCheck)
+    for(const mesh of meshesToCheck) {
+        if(mesh.material.userData.id === 1) {
+            mesh.material = regularMaterial
+        }
+    }
+    if(intersectedMeshes.length) {
+        intersectedMeshes[0].object.material = hoverMaterial
+    }
 
     // Update Physics World
     world.step(1/60, deltaTime, 3)
