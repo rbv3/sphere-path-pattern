@@ -1,21 +1,30 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { ClearPass } from 'three/addons/postprocessing/ClearPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as dat from 'lil-gui'
 import * as CANNON from 'cannon-es'
 
-THREE.ColorManagement.enabled = false
 
+import { CopyShader } from './Utils/CopyShader.js';
+import createFloor from './Utils/createFloor.js'
+
+THREE.ColorManagement.enabled = false
 /**
  * Debug
  */
 const gui = new dat.GUI()
 const debugObject = {}
-const parameters = { strength: 100 }
+const parameters = { strength: 1000 }
 debugObject.createSphere = () => {
     const radius = Math.random() * 0.5
     const position = {
         x: (Math.random() - 0.5) * 3,
-        y: 3,
+        y: 2.5,
         z: (Math.random() - 0.5) * 3
     }
     createSphere(radius, position)
@@ -39,7 +48,7 @@ debugObject.reset = () => {
 gui.add(debugObject, 'createSphere')
 gui.add(debugObject, 'createBox')
 gui.add(debugObject, 'reset')
-gui.add(parameters, 'strength').min(1).max(1000)
+gui.add(parameters, 'strength').min(1).max(5000)
 
 /**
  * Base
@@ -49,6 +58,7 @@ const canvas = document.querySelector('canvas.webgl')
 
 // Scene
 const scene = new THREE.Scene()
+const sceneCube = new THREE.Scene()
 
 /*
     Raycaster
@@ -116,6 +126,7 @@ Physics
 const world = new CANNON.World()
 const earthGravity = [0, -9.82, 0]
 world.broadphase = new CANNON.SAPBroadphase(world)
+world.maxS
 world.allowSleep = true
 
 world.gravity.set(...earthGravity)
@@ -127,8 +138,8 @@ const defaultContactMaterial = new CANNON.ContactMaterial(
     defaultMaterial,
     defaultMaterial,
     {
-        friction: 0.1,
-        restitution: 0.75
+        friction: 0.05,
+        restitution: 1.1
     }
 )
 
@@ -137,37 +148,55 @@ gui.add(defaultContactMaterial, 'restitution').min(0).max(1.5).name('bounce')
 world.defaultContactMaterial = defaultContactMaterial
 world.addContactMaterial(defaultContactMaterial)
 
+// create floors
+const faces = [
+    {
+        position: new CANNON.Vec3(0, 0, 0),
+        rotation: {
+            axes: new CANNON.Vec3(-1, 0, 0),
+            value: Math.PI * 0.5
+        }
+    },
+    {
+        position: new CANNON.Vec3(0, 1, 1),
+        rotation: {
+            axes: new CANNON.Vec3(0, 1, 0),
+            value: Math.PI 
+        }
+    },
+    {
+        position: new CANNON.Vec3(0, 1, -1),
+        rotation: {
+            axes: new CANNON.Vec3(0, 1, 0),
+            value: Math.PI
+        }
+    },
+    {
+        position: new CANNON.Vec3(1, 1, 0),
+        rotation: {
+            axes: new CANNON.Vec3(0, 1, 0),
+            value: Math.PI * 0.5
+        }
+    },
+    {
+        position: new CANNON.Vec3(-1, 1, 0),
+        rotation: {
+            axes: new CANNON.Vec3(0, -1, 0),
+            value: Math.PI * 0.5
+        }
+    },
+    { 
+        position: new CANNON.Vec3(0, 2, 0),
+        rotation: {
+            axes: new CANNON.Vec3(-1, 0, 0),
+            value: Math.PI * 0.5
+        }
+    },
+]
 
-// Floor
-const floorShape = new CANNON.Box(
-    new CANNON.Vec3(5, 5, 0.01)
-) // limited plane
-const floorBody = new CANNON.Body()
-floorBody.mass = 0 // it's static
-floorBody.addShape(floorShape)
-
-floorBody.quaternion.setFromAxisAngle(
-    new CANNON.Vec3(-1, 0, 0), Math.PI * 0.5
-)
-
-world.addBody(floorBody)
-
-/**
- * Floor
- */
-const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(10, 10),
-    new THREE.MeshStandardMaterial({
-        color: '#777777',
-        metalness: 0.3,
-        roughness: 0.4,
-        envMap: environmentMapTexture,
-        envMapIntensity: 0.5
-    })
-)
-floor.receiveShadow = true
-floor.rotation.x = - Math.PI * 0.5
-scene.add(floor)
+faces.forEach((face) => {
+    createFloor(world, sceneCube, environmentMapTexture, face.position, face.rotation)    
+})
 
 /**
  * Lights
@@ -207,6 +236,9 @@ window.addEventListener('resize', () =>
     // Update renderer
     renderer.setSize(sizes.width, sizes.height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+    // Update composer
+    composer.setSize( sizes.width, sizes.height );
 })
 
 /**
@@ -214,7 +246,7 @@ window.addEventListener('resize', () =>
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-camera.position.set(- 3, 3, 3)
+camera.position.set(- 3, 4, 5)
 scene.add(camera)
 
 // Controls
@@ -234,19 +266,67 @@ renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
 /*
+    Composer
+*/
+const clearPass = new ClearPass()
+
+const renderPass  = new RenderPass(scene, camera)
+renderPass.clear = false
+const renderCubePass = new RenderPass(sceneCube, camera)
+renderCubePass.clear = false
+
+const afterimagePass = new AfterimagePass(0.9)
+
+const outputPass = new ShaderPass(CopyShader)
+outputPass.renderToScreen = true
+
+const composer = new EffectComposer(renderer)
+composer.setSize(sizes.width, sizes.height)
+
+composer.addPass(clearPass)
+composer.addPass(renderPass)
+composer.addPass(renderCubePass)
+composer.addPass(afterimagePass)
+composer.addPass(outputPass)
+
+/*
     Utils
 */
+
+const regularMaterialConfig = {
+    metalness: 0.3,
+    roughness: 0.4,
+    envMap: environmentMapTexture,
+    userData: {id: 0}
+}
+const yellowMaterial = new THREE.MeshStandardMaterial({
+    ...regularMaterialConfig,
+    color: 'yellow'
+})
+const blueMaterial = new THREE.MeshStandardMaterial({
+    ...regularMaterialConfig,
+    color: 'blue'
+})
+const purpleMaterial = new THREE.MeshStandardMaterial({
+    ...regularMaterialConfig,
+    color: 'purple'
+})
+const greenMaterial = new THREE.MeshStandardMaterial({
+    ...regularMaterialConfig,
+    color: 'green'
+})
+
+const materialList = [yellowMaterial, blueMaterial, purpleMaterial, greenMaterial]
+const materialCount = materialList.length;
+// create path effect
+const pathVertices = []
+
 let objectsToUpdate = []
 let meshesToCheck = []
 
 // create Spheres
 const sphereGeometry = new THREE.SphereGeometry(1, 20, 20)
-const regularMaterial = new THREE.MeshStandardMaterial({
-    metalness: 0.3,
-    roughness: 0.4,
-    envMap: environmentMapTexture,
-    userData: {id: 0}
-})
+
 const hoverMaterial = new THREE.MeshStandardMaterial({
     metalness: 0.3,
     roughness: 0.4,
@@ -258,7 +338,7 @@ const createSphere = (radius, position) => {
     //Three.js Mesh
     const mesh = new THREE.Mesh(
         sphereGeometry,
-        regularMaterial
+        getRandomMaterial(),
     )
     mesh.scale.set(radius, radius, radius)
     mesh.castShadow = true
@@ -292,7 +372,7 @@ const createBox = (width, height, depth, position) => {
     // Three mesh
     const mesh = new THREE.Mesh(
         boxGeometry,
-        regularMaterial
+        getRandomMaterial()
     )
     mesh.scale.set(width, height, depth)
     mesh.castShadow = true
@@ -341,7 +421,7 @@ const removeObject = (object) => {
     })
 }
 
-createSphere(0.5, {x: 0, y: 3, z: 0})
+createSphere(0.5, {x: 0, y: 2.5, z: 0})
 
 /*
     Apply Force
@@ -365,7 +445,7 @@ const tick = () =>
     const intersectedMeshes = raycaster.intersectObjects(meshesToCheck)
     for(const mesh of meshesToCheck) {
         if(mesh.material.userData.id === 1) {
-            mesh.material = regularMaterial
+            mesh.material = getRandomMaterial()
         }
     }
     if(intersectedMeshes.length) {
@@ -393,16 +473,41 @@ const tick = () =>
         if(object.body.position.y <= -10) {
             removeObject(object)
         }
+        limitBodySpeed(object.body, 10)
     }
 
     // Update controls
     controls.update()
 
     // Render
-    renderer.render(scene, camera)
+    composer.render(deltaTime)
 
     // Call tick again on the next frame
     window.requestAnimationFrame(tick)
 }
 
 tick()
+
+function limitBodySpeed(body, value) {
+    // x
+    if(body.velocity.x > 0) {
+        body.velocity.x = Math.min(body.velocity.x, value)
+    } else {
+        body.velocity.x = Math.max(body.velocity.x, -1 * value)
+    }
+    // y
+    if(body.velocity.y > 0) {
+        body.velocity.y = Math.min(body.velocity.y, value)
+    } else {
+        body.velocity.y = Math.max(body.velocity.y, -1 * value)
+    }
+    // z
+    if(body.velocity.z > 0) {
+        body.velocity.z = Math.min(body.velocity.z, value)
+    } else {
+        body.velocity.z = Math.max(body.velocity.z, -1 * value)
+    }
+}
+function getRandomMaterial() {
+    return materialList[Math.floor(Math.random()*materialCount)]
+}
